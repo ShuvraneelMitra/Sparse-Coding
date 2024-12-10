@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 import itertools
 
 def shrink(a, b):
@@ -13,7 +14,7 @@ def ISTA(x : torch.Tensor,
          D : torch.Tensor,
          regularization=0.5,
          lr=0.01,
-         frequency=100):
+         frequency=None) -> torch.Tensor:
     """
     Implements the ISTA algorithm to find the optimal
     sparse codes for the given input vector x and
@@ -47,6 +48,7 @@ def ISTA(x : torch.Tensor,
         if change(h, h_old) < 0.001:
             break
         iter_num = next(counter)
-        if iter_num % frequency == 0:
-            print(f"Iteration {iter_num}")
+        if frequency is not None and iter_num % frequency == 0:
+            print(f"ISTA: Iteration {iter_num}")
     return h
+
