@@ -13,11 +13,11 @@ def ISTA(x : torch.Tensor,
          h_dim : int,
          D : torch.Tensor,
          regularization=0.5,
-         lr=0.01,
+         lr=None,
          frequency=None) -> torch.Tensor:
     """
     Implements the ISTA algorithm to find the optimal
-    sparse codes for the given input vector x and
+    sparse codes for the given input vector x and a given
     dictionary matrix D.
 
     :param x: The input vector
@@ -34,10 +34,23 @@ def ISTA(x : torch.Tensor,
     """
     n = x.shape[0]
     m = h_dim
-    assert D.shape == (n, m), (f"D should be matrix of shape (x_sim, h_dim), where "
+    assert D.shape == (n, m), (f"D should be matrix of shape (x_dim, h_dim), where "
                                f"x_dim={n} and h_dim={m}, but dimensions of D are {D.shape}")
     h = torch.zeros(h_dim)
     h_old = None
+
+    #--------------------------- SETTING CORRECT LEARNING RATE -----------------
+    """
+    A very crucial piece of information is that the ISTA algorithm converges
+    if and only if 1/lr > the largest eigenvalue of matmul(D^T, D) where D is
+    the dictionary matrix provided.
+    """
+    max_eig = torch.linalg.eigvals(torch.matmul(torch.transpose(D, 0, 1), D)).abs().max()
+    if lr is None:
+        lr = 1/(max_eig + 10)
+    else:
+        assert 1/lr > max_eig, (f"For convergence, the learning rate must satisfy 1/lr > the maximum eigenvalue of matmul(D^T, D)."
+                                f"The maximum eigenvalue is {max_eig}, set the learning rate appropriately")
 
     counter = itertools.count(start=0, step=1)
     while True:
