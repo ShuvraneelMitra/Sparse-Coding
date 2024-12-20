@@ -45,7 +45,7 @@ def BlockCoD(dataloader: DataLoader,
     counter = itertools.count(start=0, step=1)
     while True:
         D_old = D
-        for j in range(D.shape[1]):
+        for j in range(D_old.shape[1]):
             D[:][j] = (B[:][j] - torch.matmul(D_old, A[:][j]) + A[j][j] * D_old[:][j]) / A[j][j]
             D[:][j] = D[:][j] / torch.linalg.vector_norm(D[:][j])
         if change(D, D_old) < 0.001:
@@ -76,18 +76,20 @@ def learn_representations(dataloader: DataLoader,
     n = hidden_dim
 
     D = torch.randn((n, m))
-    D_old = None
     H = []
     counter = itertools.count(start=0, step=1)
 
     while True:
-        D_old = D
-        X = torch.cat([images for images, labels in dataloader], dim=0)
-        X = X.squeeze().flatten(start_dim=1)
-        for x in X:
-            H.append(sparse_code_inference(x, hidden_dim, D, frequency=frequency))
-            print("done")
-        ds = Together(X, H)
+        D_old = D.clone()
+        H = []
+
+        print("Entering ISTA")
+        for batch in dataloader:
+            X_batch = batch[0].squeeze().flatten(start_dim=1)
+            H_batch = [sparse_code_inference(x, hidden_dim, D, frequency=frequency) for x in X_batch]
+            H.extend(H_batch)
+        print("Leaving ISTA")
+        ds = Together(torch.vstack([batch[0] for batch in dataloader]).squeeze().flatten(start_dim=1), H)
         dl = DataLoader(ds, batch_size=32, shuffle=False)
         D = BlockCoD(dl, D_old, frequency=frequency)
 
