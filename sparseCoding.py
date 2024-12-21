@@ -1,6 +1,8 @@
 import numpy as np
+from typing import Tuple
 import torch
 from fontTools.misc.plistlib import start_dict
+from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 import itertools
 import ISTA
@@ -44,10 +46,10 @@ def BlockCoD(dataloader: DataLoader,
     D_old = None
     counter = itertools.count(start=0, step=1)
     while True:
-        D_old = D
+        D_old = D.clone()
         for j in range(D_old.shape[1]):
-            D[:][j] = (B[:][j] - torch.matmul(D_old, A[:][j]) + A[j][j] * D_old[:][j]) / A[j][j]
-            D[:][j] = D[:][j] / torch.linalg.vector_norm(D[:][j])
+            D[:, j] = (B[:, j] - torch.matmul(D_old, A[:, j]) + A[j][j] * D_old[:][j]) / A[j][j]
+            D[:, j] = D[:, j] / torch.linalg.vector_norm(D[:, j])
         if change(D, D_old) < 0.001:
             break
         iter_num = next(counter)
@@ -58,7 +60,7 @@ def BlockCoD(dataloader: DataLoader,
 def learn_representations(dataloader: DataLoader,
                           hidden_dim: int,
                           sparse_code_inference=ISTA.ISTA,
-                          frequency=None):
+                          frequency=None) -> Tuple[Tensor, Tensor]:
     """
     Implements the Sparse Coding representation learning
     algorithm using the specified sparse code inference algorithm
@@ -83,12 +85,11 @@ def learn_representations(dataloader: DataLoader,
         D_old = D.clone()
         H = []
 
-        print("Entering ISTA")
         for batch in dataloader:
             X_batch = batch[0].squeeze().flatten(start_dim=1)
             H_batch = [sparse_code_inference(x, hidden_dim, D, frequency=frequency) for x in X_batch]
             H.extend(H_batch)
-        print("Leaving ISTA")
+
         ds = Together(torch.vstack([batch[0] for batch in dataloader]).squeeze().flatten(start_dim=1), H)
         dl = DataLoader(ds, batch_size=32, shuffle=False)
         D = BlockCoD(dl, D_old, frequency=frequency)
@@ -99,5 +100,5 @@ def learn_representations(dataloader: DataLoader,
         if frequency is not None and iter_num % frequency == 0:
             print(f"Learning: Iteration {iter_num}")
 
-    return H, D
+    return torch.stack(H), D
 
