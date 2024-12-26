@@ -61,6 +61,46 @@ class LISTA(LISTABase):
             C, Z = super().forward(x, C, Z)
         return Z
 
+class LCoDBase(nn.Module):
+    """
+    Implements one iteration of the Learned Coordinate
+    Descent algorithm.
+    """
+    def __init__(self, x_dim: int, hidden_dim: int):
+        super(LCoDBase, self).__init__()
+        self.We = nn.Parameter(torch.randn(hidden_dim, x_dim))
+        self.S = nn.Parameter(torch.randn(hidden_dim, hidden_dim))
+        self.theta = nn.Parameter(torch.randn([1]))
+        self.B = None
+    
+    def init_matrices(self, x: torch.Tensor) -> torch.Tensor:
+        self.B = torch.matmul(self.We, self.x)
+        return torch.zeros((self.hidden_dim, 1))
+
+    def forward(self, x: torch.Tensor, Z: torch.Tensor) \
+            -> torch.Tensor:
+        Z_bar = shrink(self.B, self.theta)
+        k = torch.argmax(torch.abs(Z - Z_bar))
+        for j in range(self.hidden_dim):
+            self.B[j] = self.B[j] + self.S[j][k] * (Z_bar - Z)
+        Z[k] = Z_bar[k]
+        return Z 
+    
+class LCoD(LCoDBase):
+    """
+    Implements the LCoD::fprop algorithm using the 
+    LCoDBase class
+    """
+    def __init__(self, T: int, x_dim: int, hidden_dim: int):
+        super(LCoDBase, self).__init__(x_dim, hidden_dim)
+        self.T = T
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        Z = self.init_matrices(x)
+        for t in range(self.T):
+            Z = super().forward(x, Z)
+        return Z
+    
 def ISTA(x : torch.Tensor,
          h_dim : int,
          D : torch.Tensor,
@@ -188,7 +228,6 @@ def FISTA(x : torch.Tensor,
             print(f"FISTA: Iteration {iter_num}")
     return h
 
-
 def CoD(x : torch.Tensor,
          h_dim : int,
          D : torch.Tensor,
@@ -214,27 +253,25 @@ def CoD(x : torch.Tensor,
     """
     n = x.shape[0]
     m = h_dim
-    assert D.shape == (n, m), (f"D should be matrix of shape (x_dim, h_dim), where "
-                               f"x_dim={n} and h_dim={m}, but dimensions of D are {D.shape}")
-    z = torch.zeros(h_dim)
+    assert D.shape == (n, m), f"Shape mismatch: D {D.shape}, expected ({n}, {m})"
+    z = torch.zeros(h_dim, dtype=x.dtype, device=x.device)
     z_old = z.clone()
 
-    S = torch.eye(h_dim) - torch.matmul(torch.transpose(D, 0, 1), D)
+    S = torch.eye(h_dim, device=x.device) - torch.matmul(D.T, D)
     B = torch.matmul(D.T, x)
 
     counter = itertools.count(start=0, step=1)
     while True:
         z = shrink(B, regularization)
-        k = torch.argmax(torch.abs(z - z_old))
+        k = torch.argmax(torch.abs(z - z_old)).item()
         for j in range(m):
-            B[j] = B[j] + S[j][k] * (z[k] - z_old[k])
-        if change(z, z_old) < 0.01:
+            B[j] += S[j][k] * (z[k] - z_old[k])
+            
+        if change(z, z_old) < 1e-3:
             break
-        z_old = z.clone()
+        
+        z_old[k] = z[k]
         iter_num = next(counter)
         if frequency is not None and iter_num % frequency == 0:
-            print(f"Coordinate Descent: Iteration {iter_num}")
+            print(f"Coordinate Descent iteration {iter_num}: change={change(z, z_old).item()}")
     return shrink(B, regularization)
-
-model = LISTA(10, 10, 10)
-print(list(model.parameters()))
