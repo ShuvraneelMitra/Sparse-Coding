@@ -1,11 +1,10 @@
 import numpy as np
 from typing import Tuple
 import torch
-from fontTools.misc.plistlib import start_dict
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 import itertools
-import ISTA
+import inference
 
 class Together(Dataset):
     def __init__(self, X, H):
@@ -59,7 +58,7 @@ def BlockCoD(dataloader: DataLoader,
 
 def learn_representations(dataloader: DataLoader,
                           hidden_dim: int,
-                          sparse_code_inference=ISTA.ISTA,
+                          sparse_code_inference=inference.ISTA,
                           frequency=None) -> Tuple[Tensor, Tensor]:
     """
     Implements the Sparse Coding representation learning
