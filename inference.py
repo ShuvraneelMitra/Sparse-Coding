@@ -7,10 +7,10 @@ import itertools
 from typing import Tuple
 
 
-def shrink(a, b):
-    return torch.sign(a) * torch.maximum(torch.abs(a) - b, torch.tensor(0.0))
+def shrink(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    return torch.clamp(a - b, min=0) - torch.clamp(-a - b, min=0)
 
-def change(a, b):
+def change(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     return torch.sum(torch.abs(a - b))
 
 def t_gen(init):
@@ -251,27 +251,31 @@ def CoD(x : torch.Tensor,
     :return: An approximation to the optimal sparse code of the
     given input h_opt.
     """
-    n = x.shape[0]
-    m = h_dim
-    assert D.shape == (n, m), f"Shape mismatch: D {D.shape}, expected ({n}, {m})"
-    z = torch.zeros(h_dim, dtype=x.dtype, device=x.device)
-    z_old = z.clone()
-
-    S = torch.eye(h_dim, device=x.device) - torch.matmul(D.T, D)
-    B = torch.matmul(D.T, x)
+    print("Hi")
+    B = torch.matmul(D.T, x)  
+    Z = torch.zeros_like(B) 
 
     counter = itertools.count(start=0, step=1)
     while True:
-        z = shrink(B, regularization)
-        k = torch.argmax(torch.abs(z - z_old)).item()
-        for j in range(m):
-            B[j] += S[j][k] * (z[k] - z_old[k])
-            
-        if change(z, z_old) < 1e-3:
+        print("Entered loop")
+        
+        Z1 = shrink(B, regularization)
+        Zd = Z1 - Z
+        
+        k = torch.argmax(torch.abs(Zd)).item()
+        S = torch.eye(h_dim) - torch.matmul(D.T, D)
+        
+        B += S[:, k] * (Z1[k] - Z[k]).item()
+        
+        if torch.abs(Z[k] - Z1[k]).item() <= 0.00001:
             break
         
-        z_old[k] = z[k]
+        Z[k] = Z1[k]
+        
         iter_num = next(counter)
         if frequency is not None and iter_num % frequency == 0:
-            print(f"Coordinate Descent iteration {iter_num}: change={change(z, z_old).item()}")
-    return shrink(B, regularization)
+            print(f"Coordinate Descent: Iteration {iter_num}")
+            
+    Z = shrink(B, regularization)
+
+    return Z
