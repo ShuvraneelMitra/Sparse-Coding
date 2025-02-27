@@ -14,4 +14,3 @@ All the algorithms were run on a subsample of 600 images from the MNIST dataset.
 \
 Average time taken in ISTA (in s) = 1.0653418576717377 \
 Average time taken in FISTA (in s) = 0.34760572989781696 \
-Average time taken in Coordinate Descent (in s) = 
